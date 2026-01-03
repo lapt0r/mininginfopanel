@@ -214,7 +214,7 @@ end
 local function GetMiningSkill()
 	local prof1, prof2 = GetProfessions()
 	local profs = {prof1, prof2}
-	
+
 	for _, index in ipairs(profs) do
 		if index then
 			local name, icon, skillLevel, maxSkillLevel, numAbilities, spelloffset, skillLine, skillModifier =
@@ -341,7 +341,7 @@ local function GetMiningPercentageByNode(itemID, zone)
 	-- For session data, check how many nodes yielded this item
 	local sessionNodes = 0
 	local nodesWithItem = 0
-	
+
 	if MiningInfoPanelDB.nodeHistory then
 		for _, node in ipairs(MiningInfoPanelDB.nodeHistory) do
 			sessionNodes = sessionNodes + 1
@@ -350,11 +350,11 @@ local function GetMiningPercentageByNode(itemID, zone)
 			end
 		end
 	end
-	
+
 	if sessionNodes == 0 then
 		return 0
 	end
-	
+
 	return (nodesWithItem / sessionNodes) * 100
 end
 
@@ -367,7 +367,7 @@ function MIP:RecordYield(itemID, count)
 	if MIP:GetConfig("showYieldMessages") then
 		local itemName = GetItemInfo(itemID) or ("Item " .. itemID)
 		local totalSkill, baseSkill, modifier = GetMiningSkill()
-		
+
 		local skillText
 		if modifier > 0 then
 			skillText = string.format("(%d+%d)", baseSkill, modifier)
@@ -434,7 +434,7 @@ function MIP:CompleteNode()
 			local itemName = GetItemInfo(itemID) or ("Item " .. itemID)
 			table.insert(nodeYieldText, string.format("%s x%d", itemName, count))
 		end
-		print(string.format("|cff00ff00MiningInfoPanel Debug:|r Completed node in %s: %s (Total: %d [Base: %d + Modifier: %d])", 
+		print(string.format("|cff00ff00MiningInfoPanel Debug:|r Completed node in %s: %s (Total: %d [Base: %d + Modifier: %d])",
 			zone, table.concat(nodeYieldText, ", "), totalSkill, baseSkill, modifier))
 	end
 
@@ -808,7 +808,7 @@ function MIP:UpdateDisplay()
 	local nodesPerHour = GetNodesPerHour()
 	local yieldsPerHour = GetYieldPerHour()
 	local totalNodes = MiningInfoPanelDB.totalNodes or 0
-	
+
 	-- Calculate total yields per hour
 	local totalYieldsPerHour = 0
 	for _, yph in pairs(yieldsPerHour) do
@@ -821,7 +821,7 @@ function MIP:UpdateDisplay()
 	if nodeCount == 0 then
 		statsText = string.format("Nodes/hr: %.1f | Yields/hr: %.1f | Total nodes: %d", nodesPerHour, totalYieldsPerHour, totalNodes)
 	else
-		statsText = string.format("Nodes/hr: %.1f | Yields/hr: %.1f | Total nodes: %d |cff00ff00 [%d recent nodes]|r", 
+		statsText = string.format("Nodes/hr: %.1f | Yields/hr: %.1f | Total nodes: %d |cff00ff00 [%d recent nodes]|r",
 			nodesPerHour, totalYieldsPerHour, totalNodes, nodeCount)
 	end
 
@@ -996,7 +996,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 				if MiningInfoPanelDB.config.debugLogging then
 					print("|cff00ff00MiningInfoPanel Debug:|r Mining cast detected - recording timestamp")
 				end
-				
+
 				-- Record the time of this mining cast for fallback detection
 				MIP.lastMiningCastTime = GetTime()
 
@@ -1025,12 +1025,12 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 		if MiningInfoPanelDB.config.debugLogging then
 			print("|cff00ff00MiningInfoPanel Debug:|r LOOT_OPENED event triggered")
 		end
-	
+
 		local numItems = GetNumLootItems()
-		
+
 		if MiningInfoPanelDB.config.debugLogging then
 			print(string.format("|cff00ff00MiningInfoPanel Debug:|r Loot items: %d", numItems))
-		end 
+		end
 		local isMiningLoot = false
 		-- Debug all loot items
 		for i = 1, numItems do
@@ -1041,7 +1041,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 					local itemName = GetItemInfo(itemID)
 					local _, _, quantity = GetLootSlotInfo(i)
 					if MiningInfoPanelDB.config.debugLogging then
-						print(string.format("|cff00ff00MiningInfoPanel Debug:|r Loot item %d: %s (ID: %s) x%d", 
+						print(string.format("|cff00ff00MiningInfoPanel Debug:|r Loot item %d: %s (ID: %s) x%d",
 							i, tostring(itemName), tostring(itemID), quantity or 1))
 					end
 					if GetItemFamily(itemID) == 1024 then
@@ -1069,7 +1069,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 				end
 			end
 		end
-			
+
 
 	elseif event == "LOOT_CLOSED" then
 		if MiningInfoPanelDB.config.debugLogging then
