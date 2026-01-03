@@ -1,0 +1,150 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
+
+	<Frame name="MiningInfoPanelFrame" parent="UIParent" movable="true" enableMouse="true" frameStrata="MEDIUM" hidden="true" inherits="BackdropTemplate">
+		<Size x="550" y="550"/>
+		<Anchors>
+			<Anchor point="CENTER"/>
+		</Anchors>
+
+		<Frames>
+			<!-- Title Bar -->
+			<Frame name="$parentTitleBar" inherits="BackdropTemplate">
+				<Size x="380" y="30"/>
+				<Anchors>
+					<Anchor point="TOP" relativePoint="TOP" x="0" y="-15"/>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GameFontNormal" text="Mining Info Panel">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnMouseDown>
+						MiningInfoPanelFrame:StartMoving()
+					</OnMouseDown>
+					<OnMouseUp>
+						MiningInfoPanelFrame:StopMovingOrSizing()
+					</OnMouseUp>
+				</Scripts>
+			</Frame>
+
+			<!-- Zone Info -->
+			<Frame name="$parentZoneInfo">
+				<Size x="430" y="40"/>
+				<Anchors>
+					<Anchor point="TOP" relativePoint="TOP" x="0" y="-50"/>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentZoneName" inherits="GameFontNormalLarge">
+							<Anchors>
+								<Anchor point="TOP" x="0" y="-5"/>
+							</Anchors>
+						</FontString>
+						<FontString name="$parentSubzoneName" inherits="GameFontNormal">
+							<Anchors>
+								<Anchor point="TOP" relativeKey="$parent.ZoneName" relativePoint="BOTTOM" x="0" y="-2"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+			</Frame>
+
+			<!-- Toggle Button -->
+			<Button name="$parentToggleButton" inherits="UIPanelButtonTemplate">
+				<Size x="150" y="25"/>
+				<Anchors>
+					<Anchor point="TOP" relativePoint="TOP" x="0" y="-110"/>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						MiningInfoPanel:ToggleView()
+					</OnClick>
+				</Scripts>
+			</Button>
+
+			<!-- Column Headers -->
+			<Frame name="$parentHeaders">
+				<Size x="430" y="20"/>
+				<Anchors>
+					<Anchor point="TOP" relativePoint="TOP" x="-10" y="-140"/>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentOreHeader" inherits="GameFontHighlightSmall" text="Ore" justifyH="LEFT">
+							<Anchors>
+								<Anchor point="LEFT" x="34" y="0"/>
+							</Anchors>
+						</FontString>
+						<FontString name="$parentCountHeader" inherits="GameFontHighlightSmall" text="Count" justifyH="CENTER">
+							<Size x="60" y="20"/>
+							<Anchors>
+								<Anchor point="LEFT" x="220" y="0"/>
+							</Anchors>
+						</FontString>
+						<FontString name="$parentPercentHeader" inherits="GameFontHighlightSmall" text="%" justifyH="CENTER">
+							<Size x="50" y="20"/>
+							<Anchors>
+								<Anchor point="LEFT" x="290" y="0"/>
+							</Anchors>
+						</FontString>
+						<FontString name="$parentRateHeader" inherits="GameFontHighlightSmall" text="Rate/hr" justifyH="RIGHT">
+							<Size x="70" y="20"/>
+							<Anchors>
+								<Anchor point="LEFT" x="350" y="0"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+			</Frame>
+
+			<!-- Scroll Frame for Ore List -->
+			<ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
+				<Size x="430" y="290"/>
+				<Anchors>
+					<Anchor point="TOP" relativePoint="TOP" x="-10" y="-160"/>
+				</Anchors>
+				<ScrollChild>
+					<Frame name="$parentScrollChild">
+						<Size x="410" y="290"/>
+					</Frame>
+				</ScrollChild>
+			</ScrollFrame>
+
+			<!-- Mining Rate Display -->
+			<Frame name="$parentMiningRateFrame">
+				<Size x="380" y="30"/>
+				<Anchors>
+					<Anchor point="BOTTOM" relativePoint="BOTTOM" x="0" y="15"/>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GameFontHighlightSmall">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+							<Size x="420" y="30"/>
+						</FontString>
+					</Layer>
+				</Layers>
+			</Frame>
+
+			<!-- Close Button -->
+			<Button name="$parentCloseButton" inherits="UIPanelCloseButton">
+				<Anchors>
+					<Anchor point="TOPRIGHT" x="-5" y="-5"/>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						MiningInfoPanelFrame:Hide()
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+	</Frame>
+
+</Ui>
