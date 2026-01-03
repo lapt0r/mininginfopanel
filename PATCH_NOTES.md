@@ -1,6 +1,9 @@
 # Mining Info Panel - Patch Notes
 
+
 ## [Unreleased] - Release Candidate
+
+## [1.0.1] - 2026-01-02
 
 ### [FEATURE]
 - Added GitHub Actions workflows for automated CurseForge releases
