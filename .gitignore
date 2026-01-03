@@ -41,3 +41,6 @@ luac.out
 
 # PowerShell scripts
 *.ps1
+
+# Claude-specific files
+.claude/
