@@ -1,6 +1,11 @@
 # Mining Info Panel - Patch Notes
 
 
+
+## [1.1.1] - 2026-01-03
+
+### [FIX]
+- Display filtering to show only looted items
 ## [Unreleased] - Release Candidate
 
 ## [1.1.0] - 2026-01-03
