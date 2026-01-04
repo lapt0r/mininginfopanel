@@ -672,17 +672,10 @@ local function GetCombinedMiningData(zone, useAllTime)
 	-- Process ore types (node-based tracking)
 	local nodesToProcess = {}
 	if nodeData then
-		-- Add all current node data
+		-- Add only current node data (no zero counts from all-time)
 		for nodeType, count in pairs(nodeData) do
-			nodesToProcess[nodeType] = count
-		end
-		
-		-- If showing session, add any all-time nodes not in session with 0 count
-		if not useAllTime and allTimeNodeData then
-			for nodeType, _ in pairs(allTimeNodeData) do
-				if not nodesToProcess[nodeType] then
-					nodesToProcess[nodeType] = 0
-				end
+			if count > 0 then -- Only show items that have been looted
+				nodesToProcess[nodeType] = count
 			end
 		end
 		
@@ -707,18 +700,13 @@ local function GetCombinedMiningData(zone, useAllTime)
 				
 				if allTimeTotalNodes > 0 then
 					local allTimePct = ((allTimeNodeData[nodeType] or 0) / allTimeTotalNodes) * 100
-					-- Only apply color if the node type was mined this session
-					if nodeCount > 0 then
-						if currentPct > allTimePct + 0.5 then
-							color = { 0, 1, 0 } -- green - above average
-						elseif currentPct < allTimePct - 0.5 then
-							color = { 1, 0, 0 } -- red - below average
-						end
-					else
-						-- Node types not mined this session show in gray
-						color = { 0.5, 0.5, 0.5 }
-					end
+					-- Apply color comparison since we only show looted items
+					if currentPct > allTimePct + 0.5 then
+						color = { 0, 1, 0 } -- green - above average
+					elseif currentPct < allTimePct - 0.5 then
+						color = { 1, 0, 0 } -- red - below average
 				end
+			end
 			end
 			
 			table.insert(combinedData, {
@@ -738,19 +726,10 @@ local function GetCombinedMiningData(zone, useAllTime)
 	if data[zone] then
 		local itemsToProcess = {}
 		
-		-- Add all current data items
+		-- Add only current data items with counts > 0
 		for itemID, count in pairs(data[zone]) do
-			if not ORE_LOOKUP[itemID] then -- Only non-ore items
+			if not ORE_LOOKUP[itemID] and count > 0 then -- Only non-ore items that have been looted
 				itemsToProcess[itemID] = count
-			end
-		end
-		
-		-- If showing session, add any all-time items not in session with 0 count
-		if not useAllTime and allTimeData then
-			for itemID, _ in pairs(allTimeData) do
-				if not ORE_LOOKUP[itemID] and not itemsToProcess[itemID] then
-					itemsToProcess[itemID] = 0
-				end
 			end
 		end
 		
@@ -768,11 +747,7 @@ local function GetCombinedMiningData(zone, useAllTime)
 			end
 			
 			local color = { 1, 1, 1 } -- white default
-			
-			-- Gray out items not found this session when showing session
-			if not useAllTime and count == 0 then
-				color = { 0.5, 0.5, 0.5 }
-			end
+			-- No need to gray out items since we only show looted items
 			
 			-- Check if item is stone/gray quality or a gem (legacy stone grouping)
 			local isStone = itemQuality == 0 or (itemName and (string.find(itemName:lower(), "stone") or string.find(itemName:lower(), "gem")))
@@ -988,35 +963,37 @@ local function GetCombinedDataBySkill(skillRange)
 		end
 	end
 	
-	-- Process ore types (node-based tracking)
+	-- Process ore types (node-based tracking) - only show looted items
 	if nodeData then
 		for nodeType, nodeCount in pairs(nodeData) do
-			local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
-			local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
+			if nodeCount > 0 then -- Only show node types that have been mined
+				local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
+				local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
+				
+				-- Get total count for this ore type
+				local totalCount = 0
+				if data and data[nodeType] then
+					totalCount = data[nodeType]
+				end
 			
-			-- Get total count for this ore type
-			local totalCount = 0
-			if data and data[nodeType] then
-				totalCount = data[nodeType]
+				table.insert(combinedData, {
+					itemID = nodeType,
+					name = itemName or ("Node Type " .. nodeType),
+					icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+					nodeCount = nodeCount,
+					totalCount = totalCount,
+					percentage = currentPct,
+					color = { 1, 1, 1 },
+					isNodeType = true
+				})
 			end
-			
-			table.insert(combinedData, {
-				itemID = nodeType,
-				name = itemName or ("Node Type " .. nodeType),
-				icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
-				nodeCount = nodeCount,
-				totalCount = totalCount,
-				percentage = currentPct,
-				color = { 1, 1, 1 },
-				isNodeType = true
-			})
 		end
 	end
 	
-	-- Process non-ore items
+	-- Process non-ore items - only show looted items
 	if data then
 		for itemID, count in pairs(data) do
-			if not ORE_LOOKUP[itemID] then -- Only non-ore items
+			if not ORE_LOOKUP[itemID] and count > 0 then -- Only non-ore items that have been looted
 				local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
 				
 				-- Check if item is stone/gray quality or a gem
