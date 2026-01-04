@@ -2,7 +2,7 @@ MiningInfoPanel = {}
 local MIP = MiningInfoPanel
 
 -- Database version constants
-local DB_VERSION = 1
+local DB_VERSION = 2
 local DB_VERSION_KEY = "dbVersion"
 
 -- Mining spell IDs for TWW
@@ -11,6 +11,77 @@ local MINING_SPELL_IDS = {
 	[195122] = true, -- Prospecting
 	[265841] = true, -- Additional mining spell
 }
+
+-- Ore item ID lookup table for node type identification
+-- This table maps ore item IDs to their canonical ore type
+local ORE_LOOKUP = {
+	-- The War Within Ores
+	[210931] = 210931, -- Bismuth (Quality 2)
+	[210930] = 210931, -- Bismuth (Quality 1) -> maps to Quality 2
+	[210936] = 210936, -- Ironclaw Ore (Quality 1)
+	[210937] = 210936, -- Ironclaw Ore (Quality 2) -> maps to Quality 1
+	[210938] = 210936, -- Ironclaw Ore (Beta) -> maps to Quality 1
+	[210934] = 210934, -- Aqirite (Quality 2)
+	[210933] = 210934, -- Aqirite (Beta) -> maps to Quality 2
+	[210935] = 210934, -- Aqirite (Beta variant) -> maps to Quality 2
+	
+	-- Dragonflight Ores
+	[190396] = 190396, -- Serevite Ore (Quality 2)
+	[190395] = 190396, -- Serevite Ore (Quality 1) -> maps to Quality 2
+	[188658] = 188658, -- Draconium Ore
+	[189143] = 188658, -- Draconium Ore (alternate ID) -> maps to main ID
+	[190312] = 190312, -- Khaz'gorite Ore
+	
+	-- Shadowlands Ores
+	[171829] = 171829, -- Solenium Ore
+	[171833] = 171833, -- Elethium Ore
+	[171832] = 171832, -- Sinvyr Ore
+	[171831] = 171831, -- Phaedrum Ore
+	[171828] = 171828, -- Laestrite Ore
+	[171830] = 171830, -- Oxxein Ore
+	
+	-- Legacy Ores (Classic through Legion)
+	[2770] = 2770,   -- Copper Ore
+	[2771] = 2771,   -- Tin Ore
+	[2772] = 2772,   -- Iron Ore
+	[2775] = 2775,   -- Silver Ore
+	[2776] = 2776,   -- Gold Ore
+	[3858] = 3858,   -- Mithril Ore
+	[10620] = 10620, -- Thorium Ore
+	[23424] = 23424, -- Fel Iron Ore
+	[23425] = 23425, -- Adamantite Ore
+	[36909] = 36909, -- Cobalt Ore
+	[36912] = 36912, -- Saronite Ore
+	[36910] = 36910, -- Titanium Ore
+	[53038] = 53038, -- Obsidium Ore
+	[52183] = 52183, -- Pyrite Ore
+	[52185] = 52185, -- Elementium Ore
+	[72092] = 72092, -- Ghost Iron Ore
+	[72093] = 72093, -- Kyparite
+	[72094] = 72094, -- Black Trillium Ore
+	[72103] = 72103, -- White Trillium Ore
+	[109119] = 109119, -- True Iron Ore
+	[109118] = 109118, -- Blackrock Ore
+	[123918] = 123918, -- Leystone Ore
+	[123919] = 123919, -- Felslate
+	[151564] = 151564, -- Empyrium
+	[152512] = 152512, -- Monelite Ore
+	[152513] = 152513, -- Platinum Ore
+	[152579] = 152579, -- Storm Silver Ore
+	[168185] = 168185, -- Osmenite Ore
+}
+
+-- Function to identify node type from loot items
+local function IdentifyNodeType(lootItems)
+	-- lootItems is a table of {itemID = count, ...}
+	for itemID, _ in pairs(lootItems) do
+		local nodeType = ORE_LOOKUP[itemID]
+		if nodeType then
+			return nodeType -- Return first ore found (nodes only contain one ore type)
+		end
+	end
+	return nil -- No ore found in loot
+end
 
 -- Initialize saved variables structure with versioning
 local function InitDB()
@@ -32,16 +103,42 @@ local function InitDB()
 				showMinimapButton = true,
 			},
 			-- Node tracking
-			nodeHistory = {}, -- Array of {time = timestamp, yields = {[itemID] = count}}
+			nodeHistory = {}, -- Array of {time = timestamp, yields = {[itemID] = count}, nodeType = itemID}
 			-- Total nodes mined
 			totalNodes = 0,
 			-- Yield tracking for averages
 			yieldsByItem = {}, -- [itemID] = {total = count, nodes = nodeCount}
+			-- Node type tracking
+			nodeTypes = {}, -- [zoneOrSkillRange][nodeTypeItemID] = count
+			sessionNodeTypes = {} -- [zone][nodeTypeItemID] = count
 		}
 	else
-		-- Existing database - version checking could be added here
+		-- Existing database - check version and migrate if needed
 		local currentVersion = MiningInfoPanelDB[DB_VERSION_KEY] or 1
-		if currentVersion > DB_VERSION then
+		if currentVersion < DB_VERSION then
+			print(
+				"|cff00ff00MiningInfoPanel:|r Migrating database from v"
+					.. currentVersion
+					.. " to v"
+					.. DB_VERSION
+					.. "..."
+			)
+			
+			-- Migration from v1 to v2: Reset node tracking for new ore lookup system
+			if currentVersion == 1 then
+				-- Clear old node tracking data since it used unreliable detection
+				MiningInfoPanelDB.nodeHistory = {}
+				MiningInfoPanelDB.totalNodes = 0
+				MiningInfoPanelDB.yieldsByItem = {}
+				MiningInfoPanelDB.nodeTypes = {}
+				MiningInfoPanelDB.sessionNodeTypes = {}
+				print("|cff00ff00MiningInfoPanel:|r Node tracking data reset for improved accuracy")
+			end
+			
+			-- Update version
+			MiningInfoPanelDB[DB_VERSION_KEY] = DB_VERSION
+			print("|cff00ff00MiningInfoPanel:|r Database migration complete")
+		elseif currentVersion > DB_VERSION then
 			print(
 				"|cffffff00MiningInfoPanel Warning:|r Database version "
 					.. currentVersion
@@ -59,6 +156,7 @@ local function InitDB()
 	MiningInfoPanelDB.nodeHistory = {}
 	MiningInfoPanelDB.totalNodes = 0
 	MiningInfoPanelDB.yieldsByItem = {}
+	MiningInfoPanelDB.sessionNodeTypes = {}
 end
 
 -- Default configuration values
@@ -286,6 +384,45 @@ local function GetNodesPerHour()
 	return 0
 end
 
+-- Calculate node types per hour
+local function GetNodeTypesPerHour()
+	if not MiningInfoPanelDB.nodeHistory or #MiningInfoPanelDB.nodeHistory == 0 then
+		return {}
+	end
+
+	local currentTime = time()
+	local cutoffTime = currentTime - 300 -- 5 minutes
+	local recentNodeTypes = {} -- [nodeType] = count
+
+	-- Count node types in the last 5 minutes
+	for _, node in ipairs(MiningInfoPanelDB.nodeHistory) do
+		if node.time > cutoffTime and node.nodeType then
+			recentNodeTypes[node.nodeType] = (recentNodeTypes[node.nodeType] or 0) + 1
+		end
+	end
+
+	-- Calculate nodes per hour for each type
+	local nodesPerHour = {}
+	if next(recentNodeTypes) then
+		-- Find the oldest node in the window
+		local oldestNodeTime = currentTime
+		for _, node in ipairs(MiningInfoPanelDB.nodeHistory) do
+			if node.time > cutoffTime and node.time < oldestNodeTime then
+				oldestNodeTime = node.time
+			end
+		end
+
+		local timeWindow = currentTime - oldestNodeTime
+		if timeWindow > 0 then
+			for nodeType, count in pairs(recentNodeTypes) do
+				nodesPerHour[nodeType] = (count / timeWindow) * 3600
+			end
+		end
+	end
+
+	return nodesPerHour
+end
+
 -- Calculate yield per hour for all items
 local function GetYieldPerHour()
 	if not MiningInfoPanelDB.nodeHistory or #MiningInfoPanelDB.nodeHistory == 0 then
@@ -390,19 +527,34 @@ function MIP:CompleteNode()
 	local totalSkill, baseSkill, modifier = GetMiningSkill()
 	local skillRange = GetSkillRange(totalSkill)
 
+	-- Determine node type using ore lookup table
+	local nodeType = IdentifyNodeType(MIP.currentNodeYields)
+
 	-- Initialize structures if needed
 	MiningInfoPanelDB.allTime[zone] = MiningInfoPanelDB.allTime[zone] or {}
 	MiningInfoPanelDB.currentSession[zone] = MiningInfoPanelDB.currentSession[zone] or {}
 	MiningInfoPanelDB.bySkill[skillRange] = MiningInfoPanelDB.bySkill[skillRange] or {}
+	MiningInfoPanelDB.nodeTypes = MiningInfoPanelDB.nodeTypes or {}
+	MiningInfoPanelDB.nodeTypes[zone] = MiningInfoPanelDB.nodeTypes[zone] or {}
+	MiningInfoPanelDB.nodeTypes[skillRange] = MiningInfoPanelDB.nodeTypes[skillRange] or {}
+	MiningInfoPanelDB.sessionNodeTypes[zone] = MiningInfoPanelDB.sessionNodeTypes[zone] or {}
 
 	-- Record node in history
 	table.insert(MiningInfoPanelDB.nodeHistory, {
 		time = time(),
-		yields = MIP.currentNodeYields
+		yields = MIP.currentNodeYields,
+		nodeType = nodeType
 	})
 
 	-- Update total nodes count
 	MiningInfoPanelDB.totalNodes = MiningInfoPanelDB.totalNodes + 1
+
+	-- Track node type counts
+	if nodeType then
+		MiningInfoPanelDB.nodeTypes[zone][nodeType] = (MiningInfoPanelDB.nodeTypes[zone][nodeType] or 0) + 1
+		MiningInfoPanelDB.nodeTypes[skillRange][nodeType] = (MiningInfoPanelDB.nodeTypes[skillRange][nodeType] or 0) + 1
+		MiningInfoPanelDB.sessionNodeTypes[zone][nodeType] = (MiningInfoPanelDB.sessionNodeTypes[zone][nodeType] or 0) + 1
+	end
 
 	-- Update yield tracking
 	for itemID, count in pairs(MIP.currentNodeYields) do
@@ -434,8 +586,9 @@ function MIP:CompleteNode()
 			local itemName = GetItemInfo(itemID) or ("Item " .. itemID)
 			table.insert(nodeYieldText, string.format("%s x%d", itemName, count))
 		end
-		print(string.format("|cff00ff00MiningInfoPanel Debug:|r Completed node in %s: %s (Total: %d [Base: %d + Modifier: %d])",
-			zone, table.concat(nodeYieldText, ", "), totalSkill, baseSkill, modifier))
+		local nodeTypeName = nodeType and (GetItemInfo(nodeType) or ("NodeType " .. nodeType)) or "Unknown"
+		print(string.format("|cff00ff00MiningInfoPanel Debug:|r Completed node in %s: %s | Node Type: %s (Total: %d [Base: %d + Modifier: %d])",
+			zone, table.concat(nodeYieldText, ", "), nodeTypeName, totalSkill, baseSkill, modifier))
 	end
 
 	-- Clear current node yields
@@ -445,6 +598,213 @@ function MIP:CompleteNode()
 	if MiningInfoPanelFrame:IsShown() then
 		MIP:UpdateDisplay()
 	end
+end
+
+-- Calculate session-based yield rate per hour using timestamps
+local function GetSessionYieldPerHour()
+	if not MiningInfoPanelDB.sessionStart then
+		return {}
+	end
+	
+	local currentTime = time()
+	local sessionDuration = currentTime - MiningInfoPanelDB.sessionStart -- in seconds
+	
+	if sessionDuration <= 0 then
+		return {}
+	end
+	
+	local zone = GetCurrentLocation()
+	local sessionData = MiningInfoPanelDB.currentSession[zone]
+	
+	if not sessionData then
+		return {}
+	end
+	
+	local yieldsPerHour = {}
+	for itemID, totalCount in pairs(sessionData) do
+		-- Calculate items per hour based on session duration
+		yieldsPerHour[itemID] = (totalCount / sessionDuration) * 3600
+	end
+	
+	return yieldsPerHour
+end
+
+-- Get percentage of nodes that contained a specific non-ore item
+local function GetNodeContainmentPercentage(itemID)
+	if not MiningInfoPanelDB.nodeHistory or #MiningInfoPanelDB.nodeHistory == 0 then
+		return 0
+	end
+	
+	local nodesWithItem = 0
+	local totalNodes = #MiningInfoPanelDB.nodeHistory
+	
+	for _, node in ipairs(MiningInfoPanelDB.nodeHistory) do
+		if node.yields[itemID] and node.yields[itemID] > 0 then
+			nodesWithItem = nodesWithItem + 1
+		end
+	end
+	
+	return totalNodes > 0 and (nodesWithItem / totalNodes) * 100 or 0
+end
+
+-- Calculate combined ore and non-ore data
+local function GetCombinedMiningData(zone, useAllTime)
+	local data = useAllTime and MiningInfoPanelDB.allTime or MiningInfoPanelDB.currentSession
+	local allTimeData = MiningInfoPanelDB.allTime[zone]
+	local nodeData = useAllTime and MiningInfoPanelDB.nodeTypes[zone] or MiningInfoPanelDB.sessionNodeTypes[zone]
+	local allTimeNodeData = MiningInfoPanelDB.nodeTypes and MiningInfoPanelDB.nodeTypes[zone]
+	
+	-- If no data exists, return empty
+	if not data[zone] and not nodeData then
+		return {}
+	end
+	
+	local combinedData = {}
+	local totalNodes = 0
+	
+	-- Calculate total nodes for current view
+	if nodeData then
+		for nodeType, count in pairs(nodeData) do
+			totalNodes = totalNodes + count
+		end
+	end
+	
+	-- Process ore types (node-based tracking)
+	local nodesToProcess = {}
+	if nodeData then
+		-- Add all current node data
+		for nodeType, count in pairs(nodeData) do
+			nodesToProcess[nodeType] = count
+		end
+		
+		-- If showing session, add any all-time nodes not in session with 0 count
+		if not useAllTime and allTimeNodeData then
+			for nodeType, _ in pairs(allTimeNodeData) do
+				if not nodesToProcess[nodeType] then
+					nodesToProcess[nodeType] = 0
+				end
+			end
+		end
+		
+		-- Build ore data with node percentages
+		for nodeType, nodeCount in pairs(nodesToProcess) do
+			local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
+			local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
+			local color = { 1, 1, 1 } -- white default
+			
+			-- Get total count for this ore type
+			local totalCount = 0
+			if data[zone] and data[zone][nodeType] then
+				totalCount = data[zone][nodeType]
+			end
+			
+			-- Compare to all-time if showing session
+			if not useAllTime and allTimeNodeData then
+				local allTimeTotalNodes = 0
+				for _, c in pairs(allTimeNodeData) do
+					allTimeTotalNodes = allTimeTotalNodes + c
+				end
+				
+				if allTimeTotalNodes > 0 then
+					local allTimePct = ((allTimeNodeData[nodeType] or 0) / allTimeTotalNodes) * 100
+					-- Only apply color if the node type was mined this session
+					if nodeCount > 0 then
+						if currentPct > allTimePct + 0.5 then
+							color = { 0, 1, 0 } -- green - above average
+						elseif currentPct < allTimePct - 0.5 then
+							color = { 1, 0, 0 } -- red - below average
+						end
+					else
+						-- Node types not mined this session show in gray
+						color = { 0.5, 0.5, 0.5 }
+					end
+				end
+			end
+			
+			table.insert(combinedData, {
+				itemID = nodeType,
+				name = itemName or ("Node Type " .. nodeType),
+				icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+				nodeCount = nodeCount,
+				totalCount = totalCount,
+				percentage = currentPct,
+				color = color,
+				isNodeType = true
+			})
+		end
+	end
+	
+	-- Process non-ore items (containment percentage tracking)
+	if data[zone] then
+		local itemsToProcess = {}
+		
+		-- Add all current data items
+		for itemID, count in pairs(data[zone]) do
+			if not ORE_LOOKUP[itemID] then -- Only non-ore items
+				itemsToProcess[itemID] = count
+			end
+		end
+		
+		-- If showing session, add any all-time items not in session with 0 count
+		if not useAllTime and allTimeData then
+			for itemID, _ in pairs(allTimeData) do
+				if not ORE_LOOKUP[itemID] and not itemsToProcess[itemID] then
+					itemsToProcess[itemID] = 0
+				end
+			end
+		end
+		
+		-- Build non-ore data with containment percentages
+		for itemID, count in pairs(itemsToProcess) do
+			local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
+			local containmentPct = 0
+			
+			-- For session data, calculate containment percentage
+			if not useAllTime then
+				containmentPct = GetNodeContainmentPercentage(itemID)
+			else
+				-- For all-time data, we don't have node history, so show 0
+				containmentPct = 0
+			end
+			
+			local color = { 1, 1, 1 } -- white default
+			
+			-- Gray out items not found this session when showing session
+			if not useAllTime and count == 0 then
+				color = { 0.5, 0.5, 0.5 }
+			end
+			
+			-- Check if item is stone/gray quality or a gem (legacy stone grouping)
+			local isStone = itemQuality == 0 or (itemName and (string.find(itemName:lower(), "stone") or string.find(itemName:lower(), "gem")))
+			
+			table.insert(combinedData, {
+				itemID = itemID,
+				name = itemName or "Loading...",
+				icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+				nodeCount = 0, -- Non-ore items don't have node counts
+				totalCount = count,
+				percentage = containmentPct,
+				color = color,
+				isNodeType = false,
+				isStone = isStone
+			})
+		end
+	end
+	
+	-- Sort by ore types first (by node count), then non-ore items (by total count)
+	table.sort(combinedData, function(a, b)
+		if a.isNodeType and not b.isNodeType then
+			return true -- Ore types first
+		elseif not a.isNodeType and b.isNodeType then
+			return false -- Non-ore items second
+		elseif a.isNodeType and b.isNodeType then
+			return a.nodeCount > b.nodeCount -- Sort ore by node count
+		else
+			return a.totalCount > b.totalCount -- Sort non-ore by total count
+		end
+	end)
+	
+	return combinedData
 end
 
 -- Calculate percentages and get ore data
@@ -609,6 +969,90 @@ local function GetOreData(zone, useAllTime)
 	return oreData
 end
 
+-- Calculate combined data by skill range
+local function GetCombinedDataBySkill(skillRange)
+	local data = MiningInfoPanelDB.bySkill[skillRange]
+	local nodeData = MiningInfoPanelDB.nodeTypes and MiningInfoPanelDB.nodeTypes[skillRange]
+	
+	if not data and not nodeData then
+		return {}
+	end
+	
+	local combinedData = {}
+	local totalNodes = 0
+	
+	-- Calculate total nodes
+	if nodeData then
+		for nodeType, count in pairs(nodeData) do
+			totalNodes = totalNodes + count
+		end
+	end
+	
+	-- Process ore types (node-based tracking)
+	if nodeData then
+		for nodeType, nodeCount in pairs(nodeData) do
+			local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
+			local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
+			
+			-- Get total count for this ore type
+			local totalCount = 0
+			if data and data[nodeType] then
+				totalCount = data[nodeType]
+			end
+			
+			table.insert(combinedData, {
+				itemID = nodeType,
+				name = itemName or ("Node Type " .. nodeType),
+				icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+				nodeCount = nodeCount,
+				totalCount = totalCount,
+				percentage = currentPct,
+				color = { 1, 1, 1 },
+				isNodeType = true
+			})
+		end
+	end
+	
+	-- Process non-ore items
+	if data then
+		for itemID, count in pairs(data) do
+			if not ORE_LOOKUP[itemID] then -- Only non-ore items
+				local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
+				
+				-- Check if item is stone/gray quality or a gem
+				local isStone = itemQuality == 0 or (itemName and (string.find(itemName:lower(), "stone") or string.find(itemName:lower(), "gem")))
+				
+				table.insert(combinedData, {
+					itemID = itemID,
+					name = itemName or "Loading...",
+					icon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+					nodeCount = 0,
+					totalCount = count,
+					percentage = 0, -- No containment percentage for skill view
+					color = { 1, 1, 1 },
+					isNodeType = false,
+					isStone = isStone
+				})
+			end
+		end
+	end
+	
+	-- Sort by ore types first, then non-ore items
+	table.sort(combinedData, function(a, b)
+		if a.isNodeType and not b.isNodeType then
+			return true
+		elseif not a.isNodeType and b.isNodeType then
+			return false
+		elseif a.isNodeType and b.isNodeType then
+			return a.nodeCount > b.nodeCount
+		else
+			return a.totalCount > b.totalCount
+		end
+	end)
+	
+	return combinedData
+end
+
 -- Calculate percentages and get ore data by skill
 local function GetOreDataBySkill(skillRange)
 	local data = MiningInfoPanelDB.bySkill[skillRange]
@@ -698,8 +1142,8 @@ function MIP:UpdateDisplay()
 		-- Update toggle button
 		MiningInfoPanelFrameToggleButton:SetText("Show by Zone")
 
-		-- Get ore data by skill
-		oreData = GetOreDataBySkill(skillRange)
+		-- Get combined ore and non-ore data by skill
+		oreData = GetCombinedDataBySkill(skillRange)
 	else
 		-- Show data by zone
 		local zone = GetCurrentLocation()
@@ -713,8 +1157,8 @@ function MIP:UpdateDisplay()
 		local buttonText = MIP.showingAllTime and "Show Current Session" or "Show All Time"
 		MiningInfoPanelFrameToggleButton:SetText(buttonText)
 
-		-- Get ore data by zone
-		oreData = GetOreData(zone, MIP.showingAllTime)
+		-- Get combined ore and non-ore data
+		oreData = GetCombinedMiningData(zone, MIP.showingAllTime)
 	end
 
 	-- Clear existing rows
@@ -739,25 +1183,31 @@ function MIP:UpdateDisplay()
 			-- Name
 			row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 			row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
-			row.name:SetWidth(135)
+			row.name:SetWidth(120)
 			row.name:SetJustifyH("LEFT")
 
-			-- Count
-			row.count = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-			row.count:SetPoint("LEFT", row, "LEFT", 220, 0)
-			row.count:SetWidth(60)
-			row.count:SetJustifyH("CENTER")
+			-- Nodes count (for ores only)
+			row.nodeCount = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			row.nodeCount:SetPoint("LEFT", row, "LEFT", 180, 0)
+			row.nodeCount:SetWidth(40)
+			row.nodeCount:SetJustifyH("CENTER")
+
+			-- Total count
+			row.totalCount = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			row.totalCount:SetPoint("LEFT", row, "LEFT", 225, 0)
+			row.totalCount:SetWidth(40)
+			row.totalCount:SetJustifyH("CENTER")
 
 			-- Percentage
 			row.percentage = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-			row.percentage:SetPoint("LEFT", row, "LEFT", 290, 0)
-			row.percentage:SetWidth(50)
+			row.percentage:SetPoint("LEFT", row, "LEFT", 270, 0)
+			row.percentage:SetWidth(40)
 			row.percentage:SetJustifyH("CENTER")
 
 			-- Rate per hour
 			row.ratePerHour = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-			row.ratePerHour:SetPoint("LEFT", row, "LEFT", 350, 0)
-			row.ratePerHour:SetWidth(70)
+			row.ratePerHour:SetPoint("LEFT", row, "LEFT", 315, 0)
+			row.ratePerHour:SetWidth(60)
 			row.ratePerHour:SetJustifyH("RIGHT")
 
 			MIP.oreRows[i] = row
@@ -766,13 +1216,24 @@ function MIP:UpdateDisplay()
 		row:SetPoint("TOPLEFT", 0, -yOffset)
 		row.icon:SetTexture(ore.icon)
 		row.name:SetText(ore.name)
-		row.count:SetText(ore.count)
+		
+		-- Show node count for ore types, hide for non-ore items
+		if ore.isNodeType then
+			row.nodeCount:SetText(ore.nodeCount or "0")
+			row.nodeCount:Show()
+		else
+			row.nodeCount:SetText("---")
+			row.nodeCount:SetTextColor(0.5, 0.5, 0.5)
+			row.nodeCount:Show()
+		end
+		
+		row.totalCount:SetText(ore.totalCount or ore.count or "0")
 		row.percentage:SetText(string.format("%.1f%%", ore.percentage))
 		row.percentage:SetTextColor(unpack(ore.color))
 
-		-- Display rate per hour
-		local yieldsPerHour = GetYieldPerHour()
-		local ratePerHour = yieldsPerHour[ore.itemID] or 0
+		-- Display yield per hour using session timestamp calculation
+		local sessionYieldsPerHour = GetSessionYieldPerHour()
+		local ratePerHour = sessionYieldsPerHour[ore.itemID] or 0
 		if ratePerHour > 0 then
 			if ratePerHour >= 100 then
 				row.ratePerHour:SetText(string.format("%.0f", ratePerHour))

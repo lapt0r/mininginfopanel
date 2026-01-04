@@ -3,6 +3,30 @@
 
 ## [Unreleased] - Release Candidate
 
+## [1.1.0] - 2026-01-03
+
+### [BREAKING]
+- Statistics now track by node type instead of ore quantities
+- Percentages represent what % of nodes mined yielded each node type
+- Database version updated to v2 with automatic migration
+- Old node tracking data reset for improved accuracy
+
+### [FEATURE]
+- Added comprehensive ore lookup table for accurate node identification
+- Supports all expansion ores: TWW, Dragonflight, Shadowlands, and Legacy
+- Node types identified by ore item IDs instead of loot order
+- Early exit logic: nodes only contain one ore type for efficiency
+
+### [ENHANCEMENT]
+- Mixed display shows both ore types (node-based) and non-ore items (quantity-based)
+- Added separate "Nodes" and "Count" columns for comprehensive tracking
+- Ore types show node counts and percentages (% of nodes that were this ore type)
+- Non-ore items show containment percentages (% of nodes that contained this item)
+- Updated "Yield/hr" calculation based on session timestamps instead of rolling window
+- Node types stored by item ID for proper localization support
+- Improved debug logging shows identified node types
+- Items sorted with ore types first, then non-ore items by total count
+
 ## [1.0.1] - 2026-01-02
 
 ### [FEATURE]
