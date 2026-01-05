@@ -85,6 +85,62 @@ local function IdentifyNodeType(lootItems)
 	return nil -- No ore found in loot
 end
 
+-- Profession quality mapping for ores (1/2/3 system)
+local ORE_QUALITY_MAP = {
+	-- The War Within Ores
+	[210930] = 1, -- Bismuth (Quality 1)
+	[210931] = 2, -- Bismuth (Quality 2)
+	[210932] = 3, -- Bismuth (Quality 3)
+	[210936] = 1, -- Ironclaw Ore (Quality 1)
+	[210937] = 2, -- Ironclaw Ore (Quality 2)
+	[210938] = 3, -- Ironclaw Ore (Quality 3)
+	[210935] = 1, -- Aqirite (Quality 1)
+	[210933] = 2, -- Aqirite (Quality 2)
+	[210934] = 3, -- Aqirite (Quality 3)
+	
+	-- Dragonflight Ores
+	[190395] = 1, -- Serevite Ore (Quality 1)
+	[190396] = 2, -- Serevite Ore (Quality 2)
+	[188658] = 1, -- Draconium Ore (base quality)
+	[189143] = 1, -- Draconium Ore (alternate ID)
+	[190312] = 1, -- Khaz'gorite Ore (base quality)
+}
+
+-- Function to get profession quality tier (1/2/3) from item ID
+local function GetProfessionQualityTier(itemID)
+	return ORE_QUALITY_MAP[itemID] or 1 -- Default to quality 1 if unknown
+end
+
+-- Function to get profession quality color for display (1/2/3 system)
+local function GetQualityColor(qualityTier)
+	local colors = {
+		[1] = {1, 1, 1},       -- Quality 1: White
+		[2] = {0, 1, 0},       -- Quality 2: Green  
+		[3] = {0, 0.7, 1},     -- Quality 3: Blue
+	}
+	return colors[qualityTier] or {1, 1, 1} -- Default to white
+end
+
+-- Function to aggregate quantities across quality tiers for an ore type
+local function AggregateOreQualities(data, baseOreID)
+	local totalCount = 0
+	local qualityBreakdown = {} -- [qualityTier] = {itemID, count}
+	
+	-- Find all quality variants of this ore
+	for itemID, canonicalID in pairs(ORE_LOOKUP) do
+		if canonicalID == baseOreID and data[itemID] then
+			local count = data[itemID]
+			if count > 0 then
+				local qualityTier = GetProfessionQualityTier(itemID)
+				qualityBreakdown[qualityTier] = {itemID = itemID, count = count}
+				totalCount = totalCount + count
+			end
+		end
+	end
+	
+	return totalCount, qualityBreakdown
+end
+
 -- Initialize saved variables structure with versioning
 local function InitDB()
 	-- Create new database if none exists
@@ -698,19 +754,27 @@ local function GetCombinedMiningData(zone, useAllTime)
 			end
 		end
 		
-		-- Build ore data with node percentages
+		-- Build ore data with node percentages and quality aggregation
 		for nodeType, nodeCount in pairs(nodesToProcess) do
 			local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
 			local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
 			local color = { 1, 1, 1 } -- white default
 			
-			-- Get total count for this ore type
-			local totalCount = 0
-			if data[zone] and data[zone][nodeType] then
-				totalCount = data[zone][nodeType]
+			-- Aggregate total count across all quality tiers for this ore type
+			local totalCount, qualityBreakdown = AggregateOreQualities(data[zone] or {}, nodeType)
+			
+			-- Find the highest quality available for color coding
+			local highestQuality = 1
+			for qualityTier, _ in pairs(qualityBreakdown) do
+				if qualityTier > highestQuality then
+					highestQuality = qualityTier
+				end
 			end
 			
-			-- Compare to all-time if showing session
+			-- Use quality-based color for ore types
+			local qualityColor = GetQualityColor(highestQuality)
+			
+			-- Compare to all-time if showing session (still use node percentages for comparison)
 			if not useAllTime and allTimeNodeData then
 				local allTimeTotalNodes = 0
 				for _, c in pairs(allTimeNodeData) do
@@ -721,11 +785,17 @@ local function GetCombinedMiningData(zone, useAllTime)
 					local allTimePct = ((allTimeNodeData[nodeType] or 0) / allTimeTotalNodes) * 100
 					-- Apply color comparison since we only show looted items
 					if currentPct > allTimePct + 0.5 then
-						color = { 0, 1, 0 } -- green - above average
+						color = { 0, 1, 0 } -- green - above average (override quality color)
 					elseif currentPct < allTimePct - 0.5 then
-						color = { 1, 0, 0 } -- red - below average
+						color = { 1, 0, 0 } -- red - below average (override quality color)
+					else
+						color = qualityColor -- use quality color for normal performance
+					end
+				else
+					color = qualityColor -- use quality color when no comparison data
 				end
-			end
+			else
+				color = qualityColor -- use quality color for all-time view
 			end
 			
 			table.insert(combinedData, {
@@ -736,7 +806,9 @@ local function GetCombinedMiningData(zone, useAllTime)
 				totalCount = totalCount,
 				percentage = currentPct,
 				color = color,
-				isNodeType = true
+				isNodeType = true,
+				qualityBreakdown = qualityBreakdown,
+				highestQuality = highestQuality
 			})
 		end
 	end
@@ -989,11 +1061,19 @@ local function GetCombinedDataBySkill(skillRange)
 				local itemName, _, itemQuality, _, _, _, _, _, _, itemIcon = GetItemInfo(nodeType)
 				local currentPct = totalNodes > 0 and (nodeCount / totalNodes) * 100 or 0
 				
-				-- Get total count for this ore type
-				local totalCount = 0
-				if data and data[nodeType] then
-					totalCount = data[nodeType]
+				-- Aggregate total count across all quality tiers for this ore type
+				local totalCount, qualityBreakdown = AggregateOreQualities(data or {}, nodeType)
+				
+				-- Find the highest quality available for color coding
+				local highestQuality = 1
+				for qualityTier, _ in pairs(qualityBreakdown) do
+					if qualityTier > highestQuality then
+						highestQuality = qualityTier
+					end
 				end
+				
+				-- Use quality-based color for skill view
+				local qualityColor = GetQualityColor(highestQuality)
 			
 				table.insert(combinedData, {
 					itemID = nodeType,
@@ -1002,8 +1082,10 @@ local function GetCombinedDataBySkill(skillRange)
 					nodeCount = nodeCount,
 					totalCount = totalCount,
 					percentage = currentPct,
-					color = { 1, 1, 1 },
-					isNodeType = true
+					color = qualityColor,
+					isNodeType = true,
+					qualityBreakdown = qualityBreakdown,
+					highestQuality = highestQuality
 				})
 			end
 		end
@@ -1206,12 +1288,43 @@ function MIP:UpdateDisplay()
 			row.ratePerHour:SetWidth(60)
 			row.ratePerHour:SetJustifyH("RIGHT")
 
+			-- Add tooltip functionality for quality breakdown
+			row:SetScript("OnEnter", function(self)
+				if self.oreData and self.oreData.qualityBreakdown and next(self.oreData.qualityBreakdown) then
+					GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+					GameTooltip:SetText(self.oreData.name .. " Quality Breakdown", 1, 1, 1)
+					
+					-- Sort quality tiers for display
+					local sortedQualities = {}
+					for qualityTier, data in pairs(self.oreData.qualityBreakdown) do
+						table.insert(sortedQualities, {tier = qualityTier, data = data})
+					end
+					table.sort(sortedQualities, function(a, b) return a.tier > b.tier end)
+					
+					-- Add each quality tier to tooltip
+					for _, quality in ipairs(sortedQualities) do
+						local color = GetQualityColor(quality.tier)
+						local qualityName = "Quality " .. quality.tier
+						
+						GameTooltip:AddLine(string.format("  %s: %d", qualityName, quality.data.count), color[1], color[2], color[3])
+					end
+					GameTooltip:Show()
+				end
+			end)
+			
+			row:SetScript("OnLeave", function(self)
+				GameTooltip:Hide()
+			end)
+
 			MIP.oreRows[i] = row
 		end
 
 		row:SetPoint("TOPLEFT", 0, -yOffset)
 		row.icon:SetTexture(ore.icon)
 		row.name:SetText(ore.name)
+		
+		-- Store ore data for tooltip access
+		row.oreData = ore
 		
 		-- Show node count for ore types, hide for non-ore items
 		if ore.isNodeType then
