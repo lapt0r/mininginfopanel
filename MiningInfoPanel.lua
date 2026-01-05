@@ -2,7 +2,7 @@ MiningInfoPanel = {}
 local MIP = MiningInfoPanel
 
 -- Database version constants
-local DB_VERSION = 2
+local DB_VERSION = 3
 local DB_VERSION_KEY = "dbVersion"
 
 -- Mining spell IDs for TWW
@@ -10,20 +10,22 @@ local MINING_SPELL_IDS = {
 	[2575] = true,   -- Mining (base skill)
 	[195122] = true, -- Prospecting
 	[265841] = true, -- Additional mining spell
+	[423341] = true, -- The War Within mining spell
 }
 
 -- Ore item ID lookup table for node type identification
 -- This table maps ore item IDs to their canonical ore type
 local ORE_LOOKUP = {
 	-- The War Within Ores
-	[210931] = 210931, -- Bismuth (Quality 2)
-	[210930] = 210931, -- Bismuth (Quality 1) -> maps to Quality 2
-	[210936] = 210936, -- Ironclaw Ore (Quality 1)
-	[210937] = 210936, -- Ironclaw Ore (Quality 2) -> maps to Quality 1
-	[210938] = 210936, -- Ironclaw Ore (Beta) -> maps to Quality 1
-	[210934] = 210934, -- Aqirite (Quality 2)
-	[210933] = 210934, -- Aqirite (Beta) -> maps to Quality 2
-	[210935] = 210934, -- Aqirite (Beta variant) -> maps to Quality 2
+	[210930] = 210930, -- Bismuth (Base quality)
+	[210931] = 210930, -- Bismuth (Quality 2) -> maps to base
+	[210932] = 210930, -- Bismuth (Quality 3) -> maps to base
+	[210936] = 210936, -- Ironclaw Ore (Base quality)
+	[210937] = 210936, -- Ironclaw Ore (Quality 2) -> maps to base
+	[210938] = 210936, -- Ironclaw Ore (Quality 3) -> maps to base
+	[210935] = 210935, -- Aqirite (Base quality)
+	[210933] = 210935, -- Aqirite (Quality 2) -> maps to base
+	[210934] = 210935, -- Aqirite (Quality 3) -> maps to base
 	
 	-- Dragonflight Ores
 	[190396] = 190396, -- Serevite Ore (Quality 2)
@@ -133,6 +135,23 @@ local function InitDB()
 				MiningInfoPanelDB.nodeTypes = {}
 				MiningInfoPanelDB.sessionNodeTypes = {}
 				print("|cff00ff00MiningInfoPanel:|r Node tracking data reset for improved accuracy")
+			end
+			
+			-- Migration from v2 to v3: Enhanced TWW support
+			if currentVersion <= 2 then
+				-- Clear node tracking for The War Within zones to ensure new ore IDs are properly tracked
+				if MiningInfoPanelDB.nodeTypes then
+					local twwZones = {"Isle of Dorn", "The Ringing Deeps", "Hallowfall", "Azj-Kahet"}
+					for _, zone in ipairs(twwZones) do
+						if MiningInfoPanelDB.nodeTypes[zone] then
+							MiningInfoPanelDB.nodeTypes[zone] = {}
+						end
+						if MiningInfoPanelDB.allTime and MiningInfoPanelDB.allTime[zone] then
+							-- We keep the allTime data but it will be re-categorized with proper ore IDs
+						end
+					end
+				end
+				print("|cff00ff00MiningInfoPanel:|r Updated The War Within ore detection")
 			end
 			
 			-- Update version
@@ -1418,6 +1437,14 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 				end
 			end
 
+			-- Preload item info for The War Within ores
+			for itemID, _ in pairs(ORE_LOOKUP) do
+				-- Trigger item info loading for TWW ores
+				if itemID >= 210000 and itemID < 211000 then -- TWW item range
+					local _ = GetItemInfo(itemID)
+				end
+			end
+
 			local cacheSize = GetCacheSize()
 			MIP:ShowWelcomeMessage()
 			print(string.format("|cff00ff00Cache: %d yields loaded|r", cacheSize))
@@ -1482,11 +1509,25 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 						print(string.format("|cff00ff00MiningInfoPanel Debug:|r Loot item %d: %s (ID: %s) x%d",
 							i, tostring(itemName), tostring(itemID), quantity or 1))
 					end
-					if GetItemFamily(itemID) == 1024 then
+					-- Check if it's a mining item by checking item family or if it's in our ore lookup
+					if GetItemFamily(itemID) == 1024 or ORE_LOOKUP[itemID] then
 						isMiningLoot = true
+						if MiningInfoPanelDB.config.debugLogging then
+							print(string.format("|cff00ff00MiningInfoPanel Debug:|r Mining item detected: %s (ItemFamily: %s, InOreLookup: %s)",
+								tostring(itemID), tostring(GetItemFamily(itemID)), tostring(ORE_LOOKUP[itemID] ~= nil)))
+						end
 					end
 				end
 			end
+		end
+
+		-- Fallback: Check if we recently cast a mining spell (within last 5 seconds)
+		local timeSinceLastMiningCast = GetTime() - MIP.lastMiningCastTime
+		if not isMiningLoot and timeSinceLastMiningCast <= 5 then
+			if MiningInfoPanelDB.config.debugLogging then
+				print(string.format("|cff00ff00MiningInfoPanel Debug:|r Fallback detection: Recent mining cast %.2fs ago", timeSinceLastMiningCast))
+			end
+			isMiningLoot = true
 		end
 
 		if isMiningLoot then

@@ -1,5 +1,18 @@
 # Mining Info Panel - Patch Notes
 
+## [Unreleased] - Release Candidate
+
+### [FIX]
+- Fixed The War Within mining detection by adding missing spell ID (423341)
+- Corrected ore item IDs for Bismuth, Ironclaw, and Aqirite with all quality tiers
+- Enhanced mining item detection to check both item family and ore lookup table
+- Added fallback detection using recent mining cast timestamps
+- Preload item info for TWW ores to prevent nil returns from GetItemInfo
+
+### [ENHANCEMENT]
+- Database version updated to v3 with automatic migration
+- Clear TWW zone node data on migration to ensure proper ore tracking
+
 ## [1.1.1] - 2026-01-03
 
 ### [FIX]
