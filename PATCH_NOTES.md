@@ -1,5 +1,10 @@
 # Mining Info Panel - Patch Notes
 
+
+## [1.1.2] - 2026-01-04
+
+### [FIX]
+- Fix The War Within mining detection
 ## [Unreleased] - Release Candidate
 
 ### [FIX]
