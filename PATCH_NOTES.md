@@ -1,6 +1,11 @@
 # Mining Info Panel - Patch Notes
 
 
+
+## [1.2.0] - 2026-01-04
+
+### [FEATURE]
+- Implement profession quality aggregation system
 ## [1.1.2] - 2026-01-04
 
 ### [FIX]

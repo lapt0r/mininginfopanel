@@ -2,7 +2,7 @@
 ## Title: Mining Info Panel
 ## Notes: Tracks mining yields by zone with session vs all-time comparison. Groups ore types and shows color-coded percentages.
 ## Author: Manae
-## Version: 1.1.2
+## Version: 1.2.0
 ## SavedVariables: MiningInfoPanelDB
 ## IconTexture: 136248
 ## X-Category: Professions
