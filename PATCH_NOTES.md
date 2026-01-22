@@ -1,6 +1,9 @@
 # Mining Info Panel - Patch Notes
 
+## [1.2.1] - 2026-01-22
 
+### [CHORE]
+- Updated supported game versions to match retail 12.0 and all classic clients
 
 ## [1.2.0] - 2026-01-04
 
@@ -10,22 +13,6 @@
 
 ### [FIX]
 - Fix The War Within mining detection
-## [Unreleased] - Release Candidate
-
-### [FIX]
-- Fixed The War Within mining detection by adding missing spell ID (423341)
-- Corrected ore item IDs for Bismuth, Ironclaw, and Aqirite with all quality tiers
-- Enhanced mining item detection to check both item family and ore lookup table
-- Added fallback detection using recent mining cast timestamps
-- Preload item info for TWW ores to prevent nil returns from GetItemInfo
-
-### [ENHANCEMENT]
-- Database version updated to v3 with automatic migration
-- Clear TWW zone node data on migration to ensure proper ore tracking
-- Profession quality aggregation: ore counts sum quantities across quality tiers (1/2/3)
-- Profession quality color coding: White (Q1), Green (Q2), Blue (Q3)
-- Quality breakdown tooltip: hover over ores to see detailed quality distribution
-- Fixed quantity vs quality counting issue - now tracks actual ore amounts
 
 ## [1.1.1] - 2026-01-03
 
